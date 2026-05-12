@@ -21,7 +21,10 @@ final class BrightnessKeyController {
         }
 
         guard let currentBrightness = displayController.currentBrightness() else {
-            return .passThrough
+            // No DisplayServices-controllable display (e.g. clamshell with external-only).
+            // Suppress the broken native OSD while re-injecting the event at session level
+            // so DDC tools like MonitorControl still receive and act on it.
+            return .consumeAndRepost
         }
 
         let stepsPerUnit = fineStep ? HUDCalculation.fineSteps : HUDCalculation.standardSteps

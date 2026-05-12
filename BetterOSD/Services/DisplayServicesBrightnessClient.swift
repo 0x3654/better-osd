@@ -49,7 +49,7 @@ final class DisplayServicesBrightnessClient: DisplayServicesBrightnessControllin
 
     private func firstControllableDisplayID() -> CGDirectDisplayID? {
         guard resolveSymbolsIfNeeded(),
-              let canChangeBrightness
+              let getBrightnessFn
         else {
             return nil
         }
@@ -60,7 +60,12 @@ final class DisplayServicesBrightnessClient: DisplayServicesBrightnessControllin
         let status = CGGetActiveDisplayList(activeCount, &displays, &activeCount)
 
         guard status == .success else { return nil }
-        return displays.first(where: { canChangeBrightness($0) })
+
+        if let preferred = displays.first(where: { canChangeBrightness?($0) == true }) {
+            return preferred
+        }
+        var probe: Float = 0
+        return displays.first(where: { getBrightnessFn($0, &probe) == 0 })
     }
 
     private func resolveSymbolsIfNeeded() -> Bool {

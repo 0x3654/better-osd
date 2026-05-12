@@ -22,14 +22,16 @@ struct BrightnessKeyControllerTests {
     }
 
     @Test
-    func passesThroughWhenNoBrightnessCanBeRead() {
+    func consumeAndRepostWhenNoBrightnessCanBeRead() {
         let client = FakeDisplayServicesBrightnessClient()
         client.currentBrightnessResult = nil
         let controller = BrightnessKeyController(displayController: client)
 
         let result = controller.handle(.brightnessUp, fineStep: false)
 
-        #expect(result == .passThrough)
+        // No controllable display (e.g. clamshell + external DDC monitor):
+        // suppress native system OSD and re-inject for DDC tools.
+        #expect(result == .consumeAndRepost)
         #expect(controller.currentState == BrightnessState(brightness: 0))
     }
 

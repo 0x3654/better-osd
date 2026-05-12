@@ -11,6 +11,10 @@ import Foundation
 enum MediaKeyHandlingResult: Equatable {
     case passThrough
     case consumed(didChange: Bool)
+    // Suppress system OSD without re-injecting the event.
+    // Used when an upstream DDC tool (e.g. MonitorControl) has already processed
+    // the event before our tap — brightness is changed, we just kill the native OSD.
+    case consumeAndRepost
 }
 
 protocol VolumeKeyHandling: AnyObject {
