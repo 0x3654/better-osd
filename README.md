@@ -7,6 +7,7 @@ Bring back the classic volume and brightness feedback overlay to the center of y
 >
 > - 🖥 **External displays & clamshell mode** — F1/F2 brightness now controls external monitors and keeps working with the lid closed, via DDC/CI over `IOAVService` (the same channel macOS itself uses). The original app falls back to a broken, empty native OSD in this setup.
 > - ⌨️ **Keyboard backlight OSD** — with configurable keys: **⌘F1/⌘F2** by default (zero changes to system key assignments) or **F5/F6** (auto-remap that preserves Dictation / Do Not Disturb).
+> - 🔊 **Volume feedback sound** — the classic volume-change click is back: replayed on every key press using the system's own sound, and it still honors the system *Sound → "Play feedback when volume is changed"* setting.
 > - 🔁 **No restart on lid open/close** — the app picks the right backend (built-in panel vs DDC) on every key press.
 > - 🌍 **Русская локализация интерфейса**.
 > - 📖 Detailed docs (features, settings, how-it-works) and demo GIFs below.
@@ -21,7 +22,7 @@ Bring back the classic volume and brightness feedback overlay to the center of y
 
 ## Features
 
-- **Volume** — replaces the system HUD for volume up/down and mute
+- **Volume** — replaces the system HUD for volume up/down and mute, with the classic feedback click (respects the system "Play feedback when volume is changed" setting)
 - **Display brightness** — replaces the system HUD for F1/F2 brightness keys, on the built-in display and external monitors (DDC/CI)
 - **Keyboard backlight** — new OSD for ⌘F1/⌘F2 by default (F5/F6 also available)
 - Two HUD styles: **Classic** (segmented bar) and **Modern** (pill with ticks)
