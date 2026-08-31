@@ -21,12 +21,27 @@ jobs:
       DERIVED_DATA_PATH: ${{ github.workspace }}/build/DerivedData
       APP_PATH: ${{ github.workspace }}/build/DerivedData/Build/Products/Release/BetterOSD.app
       DMG_PATH: ${{ github.workspace }}/build/BetterOSD-arm64.dmg
+      UPDATES_DIR: ${{ github.workspace }}/build/updates
+      # Sparkle is repointed at this fork's own feed at build time ONLY —
+      # the Info.plist in git stays identical to upstream so PRs apply
+      # cleanly. Without this, fork users would eventually be auto-updated
+      # back to the upstream build and lose the fork's features.
+      FORK_FEED_URL: https://github.com/0x3654/better-osd/releases/latest/download/appcast.xml
+      # Public half of the fork's Sparkle Ed25519 key; the private half lives
+      # in the SPARKLE_ED25519_KEY repo secret.
+      FORK_SPARKLE_PUBKEY: kvoXC3Z8MV+p/bFliauIU9KLKE5KuurSGz0WR63legM=
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Xcode version
         run: xcodebuild -version
+
+      - name: Repoint Sparkle feed at this fork
+        run: |
+          set -euo pipefail
+          plutil -replace SUFeedURL -string "$FORK_FEED_URL" BetterOSD/Info.plist
+          plutil -replace SUPublicEDKey -string "$FORK_SPARKLE_PUBKEY" BetterOSD/Info.plist
 
       - name: Build (ad-hoc, no Developer ID)
         run: |
@@ -66,8 +81,26 @@ jobs:
           name: BetterOSD-arm64-dmg
           path: "${{ env.DMG_PATH }}"
 
+      - name: Generate Sparkle appcast
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          SPARKLE_ED25519_KEY: ${{ secrets.SPARKLE_ED25519_KEY }}
+        run: |
+          set -euo pipefail
+          SPARKLE_BIN="$DERIVED_DATA_PATH/SourcePackages/artifacts/sparkle/Sparkle/bin"
+          mkdir -p "$UPDATES_DIR"
+          cp "$DMG_PATH" "$UPDATES_DIR/"
+          printf '%s' "$SPARKLE_ED25519_KEY" | "$SPARKLE_BIN/generate_appcast" \
+            --ed-key-file - \
+            --download-url-prefix "https://github.com/0x3654/better-osd/releases/download/${{ github.ref_name }}/" \
+            "$UPDATES_DIR"
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" "$DMG_PATH" --generate-notes
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=("$DMG_PATH" "$UPDATES_DIR/appcast.xml" "$UPDATES_DIR"/*.delta)
+          gh release create "${{ github.ref_name }}" "${assets[@]}" --generate-notes
