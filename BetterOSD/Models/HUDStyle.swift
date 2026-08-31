@@ -35,6 +35,9 @@ enum AppStorageKeys {
     static let glassVariant = "glassVariant"
     static let accessibilityPrompted = "accessibilityPrompted"
 
+    // External display brightness via DDC/CI ("ddcBrightness.<vendor>:<model>:<serial>")
+    static let ddcBrightnessCachePrefix = "ddcBrightness."
+
     // Keyboard backlight OSD
     static let keyboardBacklightEnabled = "keyboardBacklightEnabled"
     static let keyboardBrightnessUpCode = "keyboardBrightnessUpCode"
