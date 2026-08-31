@@ -174,7 +174,8 @@ struct SettingsView: View {
                         .onChange(of: keyboardBacklightEnabled) { _, isOn in
                             if isOn {
                                 previewType = .keyboardBacklight
-                                if keyMode.isEmpty { applyMode("f5f6") }
+                                // Default to ⌘F1/⌘F2: no system remapping needed.
+                                if keyMode.isEmpty { applyMode("cmdF1F2") }
                             } else {
                                 HIDUtilRemapper.clearRemapping()
                             }

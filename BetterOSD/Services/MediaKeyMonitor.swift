@@ -150,7 +150,7 @@ final class MediaKeyMonitor {
 
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
-            place: .tailAppendEventTap,
+            place: .headInsertEventTap,
             options: .defaultTap,
             eventsOfInterest: mask,
             callback: Self.eventTapCallback,
@@ -333,13 +333,9 @@ final class MediaKeyMonitor {
     private func applyResult(_ result: MediaKeyHandlingResult, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch result {
         case .passThrough:
-            return Unmanaged.passUnretained(event)
+            Unmanaged.passUnretained(event)
         case .consumed:
-            return nil
-        case .consumeAndRepost:
-            // MonitorControl already processed this event before our tap.
-            // Just consume — no repost needed, no system OSD.
-            return nil
+            nil
         }
     }
 

@@ -47,9 +47,16 @@ final class DisplayServicesBrightnessClient: DisplayServicesBrightnessControllin
         return setBrightnessFn(displayID, max(0, min(1, brightness))) == 0
     }
 
+    /// True when DisplayServices can drive at least one display — i.e. the
+    /// built-in panel is active (lid open) or macOS natively supports an
+    /// external one. When false, callers should fall back to DDC.
+    func hasControllableDisplay() -> Bool {
+        firstControllableDisplayID() != nil
+    }
+
     private func firstControllableDisplayID() -> CGDirectDisplayID? {
         guard resolveSymbolsIfNeeded(),
-              let getBrightnessFn
+              let canChangeBrightness
         else {
             return nil
         }
@@ -60,12 +67,7 @@ final class DisplayServicesBrightnessClient: DisplayServicesBrightnessControllin
         let status = CGGetActiveDisplayList(activeCount, &displays, &activeCount)
 
         guard status == .success else { return nil }
-
-        if let preferred = displays.first(where: { canChangeBrightness?($0) == true }) {
-            return preferred
-        }
-        var probe: Float = 0
-        return displays.first(where: { getBrightnessFn($0, &probe) == 0 })
+        return displays.first(where: { canChangeBrightness($0) })
     }
 
     private func resolveSymbolsIfNeeded() -> Bool {

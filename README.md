@@ -14,8 +14,8 @@ A custom on-screen display for volume, display brightness, and keyboard backligh
 ## Features
 
 - **Volume** — replaces the system HUD for volume up/down and mute
-- **Display brightness** — replaces the system HUD for F1/F2 brightness keys
-- **Keyboard backlight** — new OSD for F5/F6 (or any key you configure)
+- **Display brightness** — replaces the system HUD for F1/F2 brightness keys, on the built-in display and external monitors (DDC/CI)
+- **Keyboard backlight** — new OSD for ⌘F1/⌘F2 by default (F5/F6 also available)
 - Two HUD styles: **Classic** (segmented bar) and **Modern** (pill with ticks)
 - **Liquid Glass** effect with multiple variants
 - Configurable position (bottom offset slider)
@@ -63,7 +63,11 @@ Open **Settings → Keyboard Backlight**, enable the toggle, then pick your pref
 
 BetterOSD installs a CGEvent tap (requires Accessibility permission) and intercepts media key events before they reach the system. For each key it handles, BetterOSD suppresses the native system HUD, applies the change itself, and shows its own overlay. Events it doesn't handle are passed through unchanged.
 
-Keyboard backlight brightness is read and written via `CoreBrightness.framework` (`KeyboardBrightnessClient`). Display brightness uses `DisplayServices.framework`. Both are private Apple frameworks loaded at runtime.
+Keyboard backlight brightness is read and written via `CoreBrightness.framework` (`KeyboardBrightnessClient`). Display brightness uses `DisplayServices.framework` for the built-in panel; external monitors are driven over DDC/CI (VCP `0x10`) through `IOAVService`, the same channel macOS itself uses. All private frameworks are loaded at runtime.
+
+> **Note (external displays):** DDC/CI reads are unreliable on some setups — e.g. Dell monitors while Dell Display Manager is running answer with garbage. There BetterOSD caches the last written brightness per display (persisted across launches), so the very first key press after a fresh install steps from an assumed 75% level. DDC writes themselves work fine.
+
+> **Lid closed (clamshell):** with the lid closed `DisplayServices.framework` reports no controllable display (`CanChangeBrightness = false`, `SetBrightness` is a silent no-op on externals), which is why the app now falls back to DDC automatically — no restart needed when you open/close the lid.
 
 ---
 
