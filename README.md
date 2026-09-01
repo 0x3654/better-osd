@@ -39,7 +39,7 @@ Bring back the classic volume and brightness feedback overlay to the center of y
 
 | | Version | Signed |
 |---|---|---|
-| **This fork** (+ keyboard backlight, external brightness, volume feedback) | [v3.5.0](https://github.com/0x3654/better-osd/releases/latest/download/BetterOSD-arm64.dmg) | ✗ no certificate |
+| **This fork** (+ keyboard backlight, external brightness, volume feedback, modifier keys) | [v3.6.0](https://github.com/0x3654/better-osd/releases/latest/download/BetterOSD-arm64.dmg) | ✗ no certificate |
 | **Official release** | [v3.2.0](https://github.com/zmlabs/better-osd/releases/latest/download/BetterOSD-arm64.dmg) | ✓ notarized |
 
 1. Download the latest **BetterOSD-arm64.dmg**
