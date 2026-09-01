@@ -5,7 +5,8 @@ Bring back the classic volume and brightness feedback overlay to the center of y
 > [!IMPORTANT]
 > **This fork** ([0x3654/better-osd](https://github.com/0x3654/better-osd)) extends the original [zmlabs/better-osd](https://github.com/zmlabs/better-osd) with:
 >
-> - 🖥 **External displays & clamshell mode** — F1/F2 brightness now controls external monitors and keeps working with the lid closed, via DDC/CI over `IOAVService` (the same channel macOS itself uses). The original app falls back to a broken, empty native OSD in this setup.
+> - 🖥 **External displays & clamshell mode** — F1/F2 brightness now controls external monitors and keeps working with the lid closed, via DDC/CI over `IOAVService` (the same channel macOS itself uses). The original app falls back to a broken, empty native OSD in this setup. Brightness 0 is truly black: the range below the panel's DDC floor is covered by software gamma dimming.
+> - 🎚 **Classic modifier keys** — ⇧+brightness adjusts only the display under the pointer (and the HUD appears on that display), bare F1/F2 move every display at once, bare ⌥ opens the matching Sound/Displays settings pane, and pure ⇧ flips the volume-click setting for that press.
 > - ⌨️ **Keyboard backlight OSD** — with configurable keys: **⌘F1/⌘F2** by default (zero changes to system key assignments) or **F5/F6** (auto-remap that preserves Dictation / Do Not Disturb).
 > - 🔊 **Volume feedback sound** — the classic volume-change click is back: replayed on every key press using the system's own sound, and it still honors the system *Sound → "Play feedback when volume is changed"* setting.
 > - 🔁 **No restart on lid open/close** — the app picks the right backend (built-in panel vs DDC) on every key press.
@@ -23,7 +24,8 @@ Bring back the classic volume and brightness feedback overlay to the center of y
 ## Features
 
 - **Volume** — replaces the system HUD for volume up/down and mute, with the classic feedback click (respects the system "Play feedback when volume is changed" setting)
-- **Display brightness** — replaces the system HUD for F1/F2 brightness keys, on the built-in display and external monitors (DDC/CI)
+- **Display brightness** — replaces the system HUD for F1/F2 brightness keys, on the built-in display and external monitors (DDC/CI); bare keys adjust every display together, ⇧ adjusts only the display under the pointer, and 0 is true black (gamma dimming below the DDC floor)
+- **Modifier keys** — bare ⌥ opens the matching System Settings pane instead of adjusting, pure ⇧ flips the volume-click setting for that press
 - **Keyboard backlight** — new OSD for ⌘F1/⌘F2 by default (F5/F6 also available)
 - Two HUD styles: **Classic** (segmented bar) and **Modern** (pill with ticks)
 - **Liquid Glass** effect with multiple variants
@@ -73,7 +75,9 @@ Open **Settings → Keyboard Backlight**, enable the toggle, then pick your pref
 
 BetterOSD installs a CGEvent tap (requires Accessibility permission) and intercepts media key events before they reach the system. For each key it handles, BetterOSD suppresses the native system HUD, applies the change itself, and shows its own overlay. Events it doesn't handle are passed through unchanged.
 
-Keyboard backlight brightness is read and written via `CoreBrightness.framework` (`KeyboardBrightnessClient`). Display brightness uses `DisplayServices.framework` for the built-in panel; external monitors are driven over DDC/CI (VCP `0x10`) through `IOAVService`, the same channel macOS itself uses. All private frameworks are loaded at runtime.
+Keyboard backlight brightness is read and written via `CoreBrightness.framework` (`KeyboardBrightnessClient`). Display brightness uses `DisplayServices.framework` for the built-in panel; external monitors are driven over DDC/CI (VCP `0x10`) through `IOAVService`, the same channel macOS itself uses. Bare brightness keys sweep every active display at once, each through its own backend; ⇧+brightness targets only the display under the pointer. All private frameworks are loaded at runtime.
+
+> **Note (true black):** DDC 0 is not "off" on most panels — the backlight clamps at a floor (often 20–30%). BetterOSD reserves the bottom quarter of the range for software gamma dimming (`CGSetDisplayTransferByFormula`), so brightness 0 is a black screen. The gamma tables are restored when you raise brightness back or quit the app; while dimmed, a custom color profile on that display is temporarily overridden.
 
 > **Note (external displays):** DDC/CI reads are unreliable on some setups — e.g. Dell monitors while Dell Display Manager is running answer with garbage. There BetterOSD caches the last written brightness per display (persisted across launches), so the very first key press after a fresh install steps from an assumed 75% level. DDC writes themselves work fine.
 
