@@ -27,6 +27,7 @@ Bring back the classic volume and brightness feedback overlay to the center of y
 - **Display brightness** — replaces the system HUD for F1/F2 brightness keys, on the built-in display and external monitors (DDC/CI); bare keys adjust every display together, ⇧ adjusts only the display under the pointer, and 0 is true black (gamma dimming below the DDC floor)
 - **Modifier keys** — bare ⌥ opens the matching System Settings pane instead of adjusting, pure ⇧ flips the volume-click setting for that press
 - **Keyboard backlight** — new OSD for ⌘F1/⌘F2 by default (F5/F6 also available)
+- **Built-in display off** — turn the MacBook's built-in display fully off while the lid stays open (recorded hotkey or menu bar), for open-lid "clamshell" setups
 - Two HUD styles: **Classic** (segmented bar) and **Modern** (pill with ticks)
 - **Liquid Glass** effect with multiple variants
 - Configurable position (bottom offset slider)
@@ -59,6 +60,7 @@ Open the menu bar icon → **Settings**.
 |---|---|
 | Appearance | HUD style, Liquid Glass on/off, glass variant, vertical position |
 | Keyboard Backlight | Enable/disable OSD, choose key assignment (F5/F6 or ⌘F1/⌘F2) |
+| Built-in Display | Record a media key that toggles the built-in display on/off |
 | General | Launch at login, show/hide menu bar icon |
 | Updates | Auto-install updates |
 
@@ -68,6 +70,15 @@ Open **Settings → Keyboard Backlight**, enable the toggle, then pick your pref
 
 - **F5 / F6** — intercepts the standard illumination keys. BetterOSD also remaps F5/F6 to Dictation and Do Not Disturb at the system level so those functions are preserved alongside the OSD.
 - **⌘F1 / ⌘F2** — intercepts Command + display-brightness keys. No system remapping applied; bare F1/F2 continue to control display brightness normally.
+
+### Built-in display off
+
+Open **Settings → Built-in Display** and press **Record**, then tap any media key you want to use as the toggle (keys already driving volume, brightness or keyboard backlight are refused). The same action is also available from the menu bar. How it behaves:
+
+- Disabling happens **only** on your explicit action — never automatically.
+- It refuses to disable while no external display is active, so you can't black out your only screen.
+- The display turns back on "on any sneeze": when the last external display is disconnected, when you toggle it back, or when BetterOSD quits.
+- While it stays off, waking from sleep re-applies the off state automatically. Unplugging the last external is an emergency: the panel comes back on and stays on (re-disabling is always an explicit action).
 
 ---
 
@@ -82,6 +93,8 @@ Keyboard backlight brightness is read and written via `CoreBrightness.framework`
 > **Note (external displays):** DDC/CI reads are unreliable on some setups — e.g. Dell monitors while Dell Display Manager is running answer with garbage. There BetterOSD caches the last written brightness per display (persisted across launches), so the very first key press after a fresh install steps from an assumed 75% level. DDC writes themselves work fine.
 
 > **Lid closed (clamshell):** with the lid closed `DisplayServices.framework` reports no controllable display (`CanChangeBrightness = false`, `SetBrightness` is a silent no-op on externals), which is why the app falls back to DDC automatically — no restart needed when you open/close the lid.
+
+> **Note (built-in display off):** the toggle uses the private SkyLight call macOS itself uses for clamshell mode (`CGSConfigureDisplayEnabled`) — the display is removed from the desktop entirely: windows, the cursor, Dock and Spaces treat it as absent, and the panel goes dark while the GPU stops driving it. It needs no SIP changes, but it is a private API and could break in a future macOS release (the app detects failure and warns via the HUD). The off state is session-only: it is not restored after a relaunch, and quitting BetterOSD always turns the display back on. If the app is force-killed while the display is off, it stays off until you log out or reboot.
 
 ---
 
@@ -98,6 +111,7 @@ Due to the use of private APIs and Accessibility permissions, we can no longer s
 - You'll be prompted for **Accessibility** permission so BetterOSD can listen for media keys.
 - Supports volume, brightness (built-in and external) and keyboard backlight HUD feedback.
 - Keyboard backlight OSD is opt-in — enable it and pick the keys in **Settings → Keyboard Backlight**.
+- Built-in display off needs at least one external display connected (otherwise the toggle refuses), and works with the lid open — that's the point.
 - Only supports Apple Silicon (M-series Macs).
 
 ---

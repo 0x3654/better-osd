@@ -44,4 +44,14 @@ enum AppStorageKeys {
     static let keyboardBrightnessDownCode = "keyboardBrightnessDownCode"
     // "f5f6" | "cmdF1F2" | "" (not configured)
     static let keyboardBrightnessKeyMode = "keyboardBrightnessKeyMode"
+
+    // Built-in display on/off toggle — master switch (off by default),
+    // recorded ⌃⇧⌥-style combo (keyCode -1 = not recorded)
+    static let builtinDisplayOffEnabled = "builtinDisplayOffEnabled"
+    static let builtinDisplayToggleKeyCode = "builtinDisplayToggleKeyCode"
+    static let builtinDisplayToggleModifiers = "builtinDisplayToggleModifiers"
+    static let builtinDisplayToggleKeyLabel = "builtinDisplayToggleKeyLabel"
+    // Last resolved built-in display ID — a disabled panel leaves the CG
+    // online list, so the ID must be remembered to re-enable it.
+    static let builtinDisplayKnownID = "builtinDisplayKnownID"
 }

@@ -309,6 +309,36 @@
         }
       }
     },
+    "Built-in Display": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Встроенный дисплей"
+          }
+        }
+      }
+    },
+    "Built-in Display On/Off": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Встроенный дисплей вкл/выкл"
+          }
+        }
+      }
+    },
+    "Cancel": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отмена"
+          }
+        }
+      }
+    },
     "Capture Keyboard Backlight": {
       "localizations": {
         "de": {
@@ -530,6 +560,26 @@
         }
       }
     },
+    "Enabled": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включено"
+          }
+        }
+      }
+    },
+    "F1/F2 are reserved for brightness — pick another key.": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "F1/F2 заняты под яркость — выберите другую клавишу."
+          }
+        }
+      }
+    },
     "General": {
       "comment": "General",
       "localizations": {
@@ -681,6 +731,16 @@
         }
       }
     },
+    "Key": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Клавиша"
+          }
+        }
+      }
+    },
     "Keyboard": {
       "comment": "Keyboard Backlight",
       "localizations": {
@@ -807,6 +867,16 @@
         }
       }
     },
+    "Media keys can't be used — press a regular key with ⌃/⌥/⇧/⌘.": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Медиа-клавиши не подходят — нажмите обычную клавишу с ⌃/⌥/⇧/⌘."
+          }
+        }
+      }
+    },
     "Modern": {
       "comment": "Modern",
       "localizations": {
@@ -856,6 +926,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "現代"
+          }
+        }
+      }
+    },
+    "Not set": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не задана"
           }
         }
       }
@@ -1068,6 +1148,26 @@
         }
       }
     },
+    "Record": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Записать"
+          }
+        }
+      }
+    },
+    "Recording… press a combo like ⌃⇧⌥D": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запись… нажмите комбинацию вида ⌃⇧⌥D"
+          }
+        }
+      }
+    },
     "Remaps F5 and F6 from Dictation & Do Not Disturb to keyboard brightness. System assignments are restored automatically when disabled.": {
       "localizations": {
         "de": {
@@ -1116,6 +1216,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "將 F5 和 F6 從聽寫和勿擾重新對應到鍵盤亮度。停用時自動還原系統按鍵分配。"
+          }
+        }
+      }
+    },
+    "Rerecord": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перезаписать"
           }
         }
       }
@@ -1220,6 +1330,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "在選單列顯示"
+          }
+        }
+      }
+    },
+    "Turn Off Built-in Display": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выключить встроенный дисплей"
+          }
+        }
+      }
+    },
+    "Turn On Built-in Display": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Включить встроенный дисплей"
+          }
+        }
+      }
+    },
+    "Turns the built-in display off/on via this key or the menu bar; comes back on automatically when the last external display is unplugged.": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выключает/включает встроенный дисплей по клавише или из меню-бара; автоматически включается при отключении последнего внешнего дисплея."
           }
         }
       }

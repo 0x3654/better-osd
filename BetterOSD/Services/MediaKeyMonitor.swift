@@ -29,6 +29,19 @@ final class MediaKeyMonitor {
         // collision with real NX codes (all of which are ≥ 0).
         case keyboardBrightnessDown = -1
         case keyboardBrightnessUp = -2
+        // Built-in display on/off toggle, routed via the recorded ⌃⇧⌥-style combo.
+        case builtinDisplayToggle = -3
+    }
+
+    /// What a recording session captured (Settings "Record" buttons).
+    enum RecordedHotkey: Equatable {
+        /// NX systemDefined media key code (0x… key types).
+        case mediaNX(Int)
+        /// Regular key + modifier combo, e.g. ⌃⇧⌥D. `modifierFlags` is the
+        /// raw CGEventFlags masked down to ⌃⌥⇧⌘; `label` is display-ready.
+        case keyCombo(keyCode: Int64, modifierFlags: UInt64, label: String)
+        /// Escape pressed — recording aborted.
+        case cancelled
     }
 
     // MARK: - Keyboard backlight key code constants (added)
@@ -44,6 +57,20 @@ final class MediaKeyMonitor {
     static let standardKeyboardBrightnessDownCode = 22
     static let standardKeyboardBrightnessUpCode = 21
 
+    // -1 = "not configured" sentinel for the built-in display toggle combo.
+    static let defaultBuiltinDisplayToggleKeyCode: Int64 = -1
+
+    // Only these modifiers participate in a recorded combo.
+    static let toggleModifierMask: UInt64 =
+        CGEventFlags.maskControl.rawValue
+        | CGEventFlags.maskShift.rawValue
+        | CGEventFlags.maskAlternate.rawValue
+        | CGEventFlags.maskCommand.rawValue
+
+    // keyDown keycodes that keep their native meaning — the recorder refuses
+    // to bind the display toggle to them (F1/F2 display brightness).
+    static let builtinDisplayToggleReservedKeyCodes: Set<Int64> = [144, 145]
+
     static let shared = MediaKeyMonitor()
 
     private var eventTap: CFMachPort?
@@ -58,9 +85,12 @@ final class MediaKeyMonitor {
     private let openSettingsPane: (URL) -> Void
     // Resolves the ⇧+brightness target — the display under the pointer.
     private let displayUnderCursor: () -> CGDirectDisplayID?
+    // Runs the built-in display on/off toggle; injectable for unit tests.
+    private let builtinDisplayToggler: () -> BuiltinDisplayToggleOutcome
     private var accessibilityPollTask: Task<Void, Never>?
-    // Set by startRecording(); next systemDefined key consumed and its NX code forwarded (added).
-    private var recordingCallback: ((Int) -> Void)?
+    // Set by startRecording(); the next captured key/combo is forwarded and
+    // recording mode exits (added).
+    private var recordingCallback: ((RecordedHotkey) -> Void)?
 
     // Cached keyboard backlight settings (added).
     // Read on every HID event — caching avoids repeated UserDefaults I/O on hot path.
@@ -69,6 +99,9 @@ final class MediaKeyMonitor {
     private var cachedBrightnessUpCode: Int = -1
     private var cachedBrightnessDownCode: Int = -1
     private var cachedKeyMode: String = ""          // "f5f6" | "cmdF1F2" | ""
+    private var cachedBuiltinOffEnabled = false
+    private var cachedBuiltinToggleKeyCode: Int64 = -1
+    private var cachedBuiltinToggleModifiers: UInt64 = 0
     private var defaultsObserver: NSObjectProtocol?
 
     private static let brightnessUpKeyCode: Int64 = 144
@@ -93,7 +126,8 @@ final class MediaKeyMonitor {
         keyboardBacklightController: KeyboardBacklightKeyHandling = KeyboardBacklightKeyController(),
         hudStore: HUDDisplayStateStore = .shared,
         openSettingsPane: @escaping (URL) -> Void = { NSWorkspace.shared.open($0) },
-        displayUnderCursor: @escaping () -> CGDirectDisplayID? = { MediaKeyMonitor.cursorDisplayID() }
+        displayUnderCursor: @escaping () -> CGDirectDisplayID? = { MediaKeyMonitor.cursorDisplayID() },
+        builtinDisplayToggler: @escaping () -> BuiltinDisplayToggleOutcome = { BuiltinDisplayToggleController.shared.toggle() }
     ) {
         self.volumeKeyController = volumeKeyController
         self.brightnessKeyController = brightnessKeyController
@@ -101,14 +135,15 @@ final class MediaKeyMonitor {
         self.hudStore = hudStore
         self.openSettingsPane = openSettingsPane
         self.displayUnderCursor = displayUnderCursor
+        self.builtinDisplayToggler = builtinDisplayToggler
         // Keyboard backlight: prime the cache and keep it fresh (added).
-        reloadBacklightCache()
+        reloadSettingCaches()
         defaultsObserver = NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.reloadBacklightCache()
+            self?.reloadSettingCaches()
         }
     }
 
@@ -234,6 +269,17 @@ final class MediaKeyMonitor {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let modifiers = NSEvent.ModifierFlags(rawValue: UInt(event.flags.rawValue))
 
+        // Recording mode captures a key + modifier combo (⌃⇧⌥D-style).
+        if let recorder = recordingCallback {
+            return handleHotkeyRecordingKeyDown(keyCode: keyCode, event: event, recorder: recorder)
+        }
+
+        // Built-in display toggle — the user-recorded combo, checked before
+        // everything else so its modifiers can never collide with the
+        // ⌘F1/⌘F2 backlight or bare brightness meanings.
+        if matchesBuiltinDisplayToggle(keyCode: keyCode, flags: event.flags) {
+            return applyResult(handleMediaKey(.builtinDisplayToggle, modifiers: modifiers), event: event)
+        }
 
         // Keyboard backlight via ⌘F1 / ⌘F2 — checked first so CMD intercepts
         // before the bare F1/F2 display-brightness path below.
@@ -273,7 +319,7 @@ final class MediaKeyMonitor {
         // Recording mode: capture the NX keycode, consume event, exit recording.
         if let callback = recordingCallback {
             recordingCallback = nil
-            callback(keyCode)
+            callback(.mediaNX(keyCode))
             return nil
         }
 
@@ -294,7 +340,7 @@ final class MediaKeyMonitor {
         return applyResult(handleMediaKey(mk, modifiers: nsEvent.modifierFlags), event: event)
     }
 
-    private func reloadBacklightCache() {
+    func reloadSettingCaches() {
         cachedBacklightEnabled = UserDefaults.standard.object(
             forKey: AppStorageKeys.keyboardBacklightEnabled) as? Bool ?? false
         cachedBrightnessUpCode = UserDefaults.standard.object(
@@ -304,7 +350,108 @@ final class MediaKeyMonitor {
             forKey: AppStorageKeys.keyboardBrightnessDownCode) as? Int
             ?? Self.defaultKeyboardBrightnessDownCode
         cachedKeyMode = UserDefaults.standard.string(forKey: AppStorageKeys.keyboardBrightnessKeyMode) ?? ""
+        cachedBuiltinOffEnabled = UserDefaults.standard.object(
+            forKey: AppStorageKeys.builtinDisplayOffEnabled) as? Bool ?? false
+        cachedBuiltinToggleKeyCode = Int64(
+            UserDefaults.standard.object(forKey: AppStorageKeys.builtinDisplayToggleKeyCode) as? Int
+                ?? Int(Self.defaultBuiltinDisplayToggleKeyCode)
+        )
+        cachedBuiltinToggleModifiers = UInt64(
+            UserDefaults.standard.object(forKey: AppStorageKeys.builtinDisplayToggleModifiers) as? Int ?? 0
+        )
     }
+
+    // True when the keyDown matches the recorded ⌃⇧⌥-style combo exactly
+    // (extra modifiers held → no match, so typing stays safe). The feature's
+    // master switch gates this — disabled means the combo is never caught.
+    func matchesBuiltinDisplayToggle(keyCode: Int64, flags: CGEventFlags) -> Bool {
+        guard cachedBuiltinOffEnabled,
+              cachedBuiltinToggleKeyCode >= 0,
+              keyCode == cachedBuiltinToggleKeyCode else { return false }
+        return (flags.rawValue & Self.toggleModifierMask) == cachedBuiltinToggleModifiers
+    }
+
+    // MARK: - Hotkey recording (combo path)
+
+    /// Captures one key + ⌃⌥⇧⌘-modifier combo. Bare keys (no modifier) pass
+    /// through untouched — a combo without modifiers would hijack typing.
+    /// Escape aborts the recording.
+    private func handleHotkeyRecordingKeyDown(
+        keyCode: Int64,
+        event: CGEvent,
+        recorder: (RecordedHotkey) -> Void
+    ) -> Unmanaged<CGEvent>? {
+        if keyCode == 53 {  // Escape — abort.
+            recordingCallback = nil
+            recorder(.cancelled)
+            return nil
+        }
+
+        let modifierBits = event.flags.rawValue & Self.toggleModifierMask
+        guard modifierBits != 0 else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        var unicode: [UniChar] = Array(repeating: 0, count: 4)
+        var length = 0
+        event.keyboardGetUnicodeString(
+            maxStringLength: unicode.count,
+            actualStringLength: &length,
+            unicodeString: &unicode
+        )
+        let characters = length > 0 ? String(decoding: unicode.prefix(length), as: UTF16.self) : nil
+
+        recordingCallback = nil
+        recorder(.keyCombo(
+            keyCode: keyCode,
+            modifierFlags: modifierBits,
+            label: Self.comboLabel(keyCode: keyCode, modifierFlags: modifierBits, characters: characters)
+        ))
+        return nil
+    }
+
+    /// Display-ready label: modifier symbols in ⌃⇧⌥⌘ order + the key.
+    /// The key name comes from the keycode map — with ⌥ held the event's
+    /// unicode string is composed garbage (∂ etc.) or empty, so it is only a
+    /// fallback for unmapped keys.
+    static func comboLabel(keyCode: Int64, modifierFlags: UInt64, characters: String?) -> String {
+        var label = ""
+        if modifierFlags & CGEventFlags.maskControl.rawValue != 0 { label += "⌃" }
+        if modifierFlags & CGEventFlags.maskShift.rawValue != 0 { label += "⇧" }
+        if modifierFlags & CGEventFlags.maskAlternate.rawValue != 0 { label += "⌥" }
+        if modifierFlags & CGEventFlags.maskCommand.rawValue != 0 { label += "⌘" }
+
+        if let name = Self.keycodeNames[Int(keyCode)] {
+            return label + name
+        }
+
+        let key = characters?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .uppercased()
+        if let key, key.count == 1, key.allSatisfy(\.isLetter), key.first?.isASCII == true {
+            label += key
+        } else {
+            label += "Key \(keyCode)"
+        }
+        return label
+    }
+
+    /// ANSI keycodes → display names (letters, digits, common keys).
+    static let keycodeNames: [Int: String] = [
+        0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X",
+        8: "C", 9: "V", 11: "B", 12: "Q", 13: "W", 14: "E", 15: "R",
+        16: "Y", 17: "T", 18: "1", 19: "2", 20: "3", 21: "4", 22: "6",
+        23: "5", 25: "9", 26: "7", 28: "8", 29: "0", 31: "O", 32: "U",
+        34: "I", 35: "P", 37: "L", 38: "J", 40: "K", 45: "N", 46: "M",
+        27: "-", 24: "=", 30: "]", 33: "[", 39: "'", 41: ";", 42: "\\",
+        43: ",", 44: "/", 47: ".", 36: "↩", 48: "⇥", 49: "Space",
+        51: "⌫", 53: "⎋",
+        99: "F3", 118: "F4", 96: "F5", 97: "F6", 98: "F7", 100: "F8",
+        101: "F9", 109: "F10", 103: "F11", 111: "F12", 105: "F13",
+        107: "F14", 113: "F15", 106: "F16", 64: "F17", 79: "F18", 80: "F19",
+        122: "F1", 120: "F2",  // refused for this feature, labeled for completeness
+        125: "↓", 126: "↑", 123: "←", 124: "→"
+    ]
 
     // Resolves NX systemDefined code → keyboard backlight key (f5f6 mode only).
     private func resolveKeyboardBacklightKey(for code: Int) -> MediaKey? {
@@ -351,7 +498,7 @@ final class MediaKeyMonitor {
 
     // MARK: - Key recording (used by settings UI to capture a new hotkey)
 
-    func startRecording(callback: @escaping (Int) -> Void) {
+    func startRecording(callback: @escaping (RecordedHotkey) -> Void) {
         recordingCallback = callback
     }
 
@@ -375,6 +522,10 @@ final class MediaKeyMonitor {
 
     func handleMediaKeyForTesting(_ key: MediaKey, modifiers: NSEvent.ModifierFlags) -> MediaKeyHandlingResult {
         handleMediaKey(key, modifiers: modifiers)
+    }
+
+    func handleKeyDownForTesting(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+        handleBrightnessKeyDown(event)
     }
 
     private func handleMediaKey(_ key: MediaKey, modifiers: NSEvent.ModifierFlags) -> MediaKeyHandlingResult {
@@ -417,6 +568,14 @@ final class MediaKeyMonitor {
                 hudStore.update(keyboardBacklightController.currentState.displayState)
             }
             return result
+
+        // Built-in display on/off (added): the controller owns HUD feedback,
+        // including the warning shown on refusal — always consume so the
+        // recorded key keeps its meaning even when the toggle refuses.
+        case .builtinDisplayToggle:
+            let outcome = builtinDisplayToggler()
+            let didChange = outcome == .disabled || outcome == .enabled
+            return .consumed(didChange: didChange)
         }
     }
 }
@@ -434,6 +593,8 @@ extension MediaKeyMonitor.MediaKey {
         case .brightnessUp, .brightnessDown:
             URL(string: "x-apple.systempreferences:com.apple.Displays-Settings.extension")
         case .keyboardBrightnessUp, .keyboardBrightnessDown:
+            nil
+        case .builtinDisplayToggle:
             nil
         }
     }

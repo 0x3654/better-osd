@@ -133,6 +133,9 @@ Temporary Items
 .vscode/
 .idea/
 
+# Claude Code local settings (shared .claude/settings.json stays tracked)
+.claude/settings.local.json
+
 # App Store Connect API Key
 AuthKey_*.p8
 api_key.json

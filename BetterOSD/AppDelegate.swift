@@ -20,6 +20,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SPUStand
     private let updateNotificationIdentifier = "BetterOSD.UpdateAvailable"
     private var statusItem: NSStatusItem?
     private var settingsWindow: NSWindow?
+    private weak var builtinDisplayMenuItem: NSMenuItem?
 
     var automaticallyDownloadsUpdates: Bool {
         updaterController.updater.automaticallyDownloadsUpdates
@@ -80,6 +81,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SPUStand
 
         promptAccessibilityIfNeeded()
         restoreKeyRemappingIfNeeded()
+        BuiltinDisplayToggleController.shared.start()
     }
 
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows _: Bool) -> Bool {
@@ -119,13 +121,46 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SPUStand
         updateItem.target = updaterController
         menu.addItem(updateItem)
 
+        menu.addItem(.separator())
+        let builtinDisplayItem = NSMenuItem(
+            title: NSLocalizedString("Turn Off Built-in Display", comment: ""),
+            action: #selector(toggleBuiltinDisplay(_:)),
+            keyEquivalent: ""
+        )
+        builtinDisplayItem.target = self
+        menu.addItem(builtinDisplayItem)
+        builtinDisplayMenuItem = builtinDisplayItem
+
         let quitItem = NSMenuItem(title:
             NSLocalizedString("Quit", comment: ""),
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q")
         menu.addItem(quitItem)
 
+        menu.delegate = self
         statusItem?.menu = menu
+    }
+
+    @objc private func toggleBuiltinDisplay(_: NSMenuItem?) {
+        BuiltinDisplayToggleController.shared.toggle()
+        refreshBuiltinDisplayMenuItem()
+    }
+
+    private func refreshBuiltinDisplayMenuItem() {
+        guard let item = builtinDisplayMenuItem else { return }
+        let enabled = UserDefaults.standard.object(
+            forKey: AppStorageKeys.builtinDisplayOffEnabled) as? Bool ?? false
+        item.isHidden = !enabled
+        guard enabled else { return }
+
+        let controller = BuiltinDisplayToggleController.shared
+        if controller.intent == .keepDisabled || controller.builtinPanelIsOff {
+            item.title = NSLocalizedString("Turn On Built-in Display", comment: "")
+            item.state = .on
+        } else {
+            item.title = NSLocalizedString("Turn Off Built-in Display", comment: "")
+            item.state = .off
+        }
     }
 
     // Re-applies hidutil F5/F6 remapping on every launch when the keyboard backlight
@@ -204,6 +239,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SPUStand
     }
 
     func applicationWillTerminate(_: Notification) {
+        // First: kCGConfigurePermanently does not revert on its own, so the
+        // display must be re-enabled before anything tears the app down.
+        BuiltinDisplayToggleController.shared.shutdown()
         osdWindowManager.stop()
         MediaKeyMonitor.shared.stop()
         VolumeMonitor.shared.stop()
@@ -222,5 +260,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate, SPUStand
         NSApp.dockTile.badgeLabel = nil
         UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [updateNotificationIdentifier])
         UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [updateNotificationIdentifier])
+    }
+}
+
+extension AppDelegate: NSMenuDelegate {
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === statusItem?.menu else { return }
+        refreshBuiltinDisplayMenuItem()
     }
 }
