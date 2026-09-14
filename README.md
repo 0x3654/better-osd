@@ -60,7 +60,7 @@ Open the menu bar icon → **Settings**.
 |---|---|
 | Appearance | HUD style, Liquid Glass on/off, glass variant, vertical position |
 | Keyboard Backlight | Enable/disable OSD, choose key assignment (F5/F6 or ⌘F1/⌘F2) |
-| Built-in Display | Record a media key that toggles the built-in display on/off |
+| Built-in Display On/Off | Enable the feature, record a ⌃⇧⌥-style combo that toggles the built-in display |
 | General | Launch at login, show/hide menu bar icon |
 | Updates | Auto-install updates |
 
@@ -73,7 +73,7 @@ Open **Settings → Keyboard Backlight**, enable the toggle, then pick your pref
 
 ### Built-in display off
 
-Open **Settings → Built-in Display** and press **Record**, then tap any media key you want to use as the toggle (keys already driving volume, brightness or keyboard backlight are refused). The same action is also available from the menu bar. How it behaves:
+Open **Settings → Built-in Display On/Off**, enable the toggle (the feature is off by default) and press **Record**, then hold a combo like **⌃⇧⌥D** — any regular key with at least one of ⌃/⌥/⇧/⌘ works (media keys and F1/F2 are refused). The same action is also available from the menu bar. How it behaves:
 
 - Disabling happens **only** on your explicit action — never automatically.
 - It refuses to disable while no external display is active, so you can't black out your only screen.
