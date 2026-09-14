@@ -491,7 +491,10 @@ struct SettingsView: View {
 
     private var footerBar: some View {
         HStack(spacing: 5) {
-            Link("Open Source", destination: URL(string: "https://github.com/zmlabs/better-osd")!)
+            Link("Fork", destination: URL(string: "https://github.com/0x3654/better-osd")!)
+                .underline()
+            Text("·")
+            Link("Original", destination: URL(string: "https://github.com/zmlabs/better-osd")!)
                 .underline()
             Text("·")
             Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")")

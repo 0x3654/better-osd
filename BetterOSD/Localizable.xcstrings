@@ -580,6 +580,16 @@
         }
       }
     },
+    "Fork": {
+      "localizations": {
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Форк"
+          }
+        }
+      }
+    },
     "General": {
       "comment": "General",
       "localizations": {
@@ -992,54 +1002,12 @@
         }
       }
     },
-    "Open Source": {
+    "Original": {
       "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open Source"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Código abierto"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open source"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オープンソース"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "오픈 소스"
-          }
-        },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Open Source"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "开源"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開源"
+            "value": "Оригинал"
           }
         }
       }
