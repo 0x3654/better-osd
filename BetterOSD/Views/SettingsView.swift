@@ -71,6 +71,13 @@ struct SettingsView: View {
     @AppStorage(AppStorageKeys.keyboardBrightnessUpCode) private var brightnessUpCode: Int = -1
     @AppStorage(AppStorageKeys.keyboardBrightnessDownCode) private var brightnessDownCode: Int = -1
     @AppStorage(AppStorageKeys.keyboardBrightnessKeyMode) private var keyMode: String = ""
+    @AppStorage(AppStorageKeys.builtinDisplayOffEnabled) private var builtinDisplayOffEnabled: Bool = false
+    @AppStorage(AppStorageKeys.builtinDisplayToggleKeyCode) private var builtinDisplayToggleKeyCode: Int = -1
+    @AppStorage(AppStorageKeys.builtinDisplayToggleModifiers) private var builtinDisplayToggleModifiers: Int = 0
+    @AppStorage(AppStorageKeys.builtinDisplayToggleKeyLabel) private var builtinDisplayToggleKeyLabel: String = ""
+
+    @State private var isRecordingDisplayToggle = false
+    @State private var displayToggleRecordError: DisplayToggleRecordError?
 
     @State private var previewType: SettingsPreviewType = .volume
     @State private var accessibilityGranted = false
@@ -90,6 +97,7 @@ struct SettingsView: View {
                 previewSection
                 appearanceSection
                 keyboardBacklightSection
+                builtinDisplaySection
                 generalSection
                 updateSection
             }
@@ -107,6 +115,10 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refreshAccessibilityStatus()
             refreshUpdateSettings()
+        }
+        .onDisappear {
+            // A stale recording callback would swallow the next media key.
+            stopDisplayToggleRecording()
         }
     }
 
@@ -217,6 +229,137 @@ struct SettingsView: View {
             HIDUtilRemapper.clearRemapping()
         default:
             break
+        }
+    }
+
+    // MARK: - Built-in Display
+
+    private enum DisplayToggleRecordError {
+        case mediaKey
+        case reservedKey
+
+        var message: LocalizedStringKey {
+            switch self {
+            case .mediaKey: "Media keys can't be used — press a regular key with ⌃/⌥/⇧/⌘."
+            case .reservedKey: "F1/F2 are reserved for brightness — pick another key."
+            }
+        }
+    }
+
+    private var builtinDisplaySection: some View {
+        SettingsSection(title: NSLocalizedString("Built-in Display On/Off", comment: "Built-in Display On/Off")) {
+            VStack(spacing: 0) {
+                SettingsRow {
+                    Text("Enabled")
+                    Spacer()
+                    Toggle("", isOn: $builtinDisplayOffEnabled)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .controlSize(.small)
+                        .onChange(of: builtinDisplayOffEnabled) { _, isOn in
+                            if !isOn {
+                                // Never leave the panel off behind a disabled feature.
+                                stopDisplayToggleRecording()
+                                BuiltinDisplayToggleController.shared.disableFeature()
+                            }
+                        }
+                }
+
+                if builtinDisplayOffEnabled {
+                    SettingsDivider()
+                    SettingsRow {
+                        Text("Key")
+                        Spacer()
+                        if builtinDisplayToggleKeyCode >= 0 {
+                            Text(builtinDisplayToggleKeyLabel)
+                                .monospaced()
+                        } else {
+                            Text("Not set")
+                                .foregroundStyle(.secondary)
+                        }
+                        if isRecordingDisplayToggle {
+                            Button("Cancel") {
+                                stopDisplayToggleRecording()
+                            }
+                            .controlSize(.small)
+                        } else {
+                            Button(builtinDisplayToggleKeyCode >= 0 ? "Rerecord" : "Record") {
+                                startDisplayToggleRecording()
+                            }
+                            .controlSize(.small)
+                            if builtinDisplayToggleKeyCode >= 0 {
+                                Button("Clear") {
+                                    builtinDisplayToggleKeyCode = -1
+                                    builtinDisplayToggleModifiers = 0
+                                    builtinDisplayToggleKeyLabel = ""
+                                }
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+
+                    if isRecordingDisplayToggle {
+                        SettingsDivider()
+                        SettingsRow {
+                            Text("Recording… press a combo like ⌃⇧⌥D")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if let displayToggleRecordError {
+                        SettingsDivider()
+                        SettingsRow {
+                            Text(displayToggleRecordError.message)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                    }
+
+                    SettingsDivider()
+                    SettingsRow {
+                        Text("Turns the built-in display off/on via this key or the menu bar; comes back on automatically when the last external display is unplugged.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private func startDisplayToggleRecording() {
+        displayToggleRecordError = nil
+        isRecordingDisplayToggle = true
+        MediaKeyMonitor.shared.startRecording { hotkey in
+            let captured = hotkey
+            Task { @MainActor in
+                finishDisplayToggleRecording(with: captured)
+            }
+        }
+    }
+
+    private func stopDisplayToggleRecording() {
+        MediaKeyMonitor.shared.stopRecording()
+        isRecordingDisplayToggle = false
+    }
+
+    private func finishDisplayToggleRecording(with hotkey: MediaKeyMonitor.RecordedHotkey) {
+        switch hotkey {
+        case .cancelled:
+            isRecordingDisplayToggle = false
+
+        case .mediaNX:
+            isRecordingDisplayToggle = false
+            displayToggleRecordError = .mediaKey
+
+        case let .keyCombo(keyCode, modifierFlags, label):
+            isRecordingDisplayToggle = false
+            if MediaKeyMonitor.builtinDisplayToggleReservedKeyCodes.contains(keyCode) {
+                displayToggleRecordError = .reservedKey
+                return
+            }
+            builtinDisplayToggleKeyCode = Int(keyCode)
+            builtinDisplayToggleModifiers = Int(modifierFlags)
+            builtinDisplayToggleKeyLabel = label
         }
     }
 

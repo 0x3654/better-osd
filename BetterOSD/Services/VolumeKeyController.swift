@@ -91,7 +91,8 @@ final class VolumeKeyController: VolumeKeyHandling {
                 invertFeedback: invertFeedback
             )
         case .brightnessUp, .brightnessDown,
-             .keyboardBrightnessUp, .keyboardBrightnessDown:
+             .keyboardBrightnessUp, .keyboardBrightnessDown,
+             .builtinDisplayToggle:
             return .passThrough
         }
 
@@ -247,7 +248,8 @@ extension MediaKeyMonitor.MediaKey {
         case .soundUp, .soundDown, .mute:
             true
         case .brightnessUp, .brightnessDown,
-             .keyboardBrightnessUp, .keyboardBrightnessDown:  // keyboard backlight cases added
+             .keyboardBrightnessUp, .keyboardBrightnessDown,  // keyboard backlight cases added
+             .builtinDisplayToggle:
             false
         }
     }
