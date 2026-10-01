@@ -37,6 +37,8 @@ enum AppStorageKeys {
 
     // External display brightness via DDC/CI ("ddcBrightness.<vendor>:<model>:<serial>")
     static let ddcBrightnessCachePrefix = "ddcBrightness."
+    /// Display keys currently software-dimmed via gamma tables (crash-safe restore).
+    static let ddcSoftwareDimmedDisplays = "ddcSoftwareDimmedDisplays"
 
     // Keyboard backlight OSD
     static let keyboardBacklightEnabled = "keyboardBacklightEnabled"
