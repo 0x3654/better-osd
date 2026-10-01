@@ -192,6 +192,60 @@ struct DDCBrightnessClientTests {
         #expect(gammaFactors == [0, 1])
     }
 
+    @Test
+    func belowFloorPersistsDimmedDisplayKey() {
+        let transport = FakeDDCTransport(lastReadLuminance: nil)
+        let defaults = makeDefaults()
+        let client = DDCBrightnessClient(
+            transportProvider: { _ in transport },
+            displayCandidateProvider: Self.candidate,
+            defaults: defaults,
+            gammaDimming: { _, _ in }
+        )
+
+        #expect(client.setBrightness(0.1) == true)
+        let keys = defaults.stringArray(forKey: AppStorageKeys.ddcSoftwareDimmedDisplays) ?? []
+        #expect(keys == ["0x10ac:0x437d:1112950348"])
+    }
+
+    @Test
+    func risingAboveFloorClearsPersistedDimmedKey() {
+        let transport = FakeDDCTransport(lastReadLuminance: nil)
+        let defaults = makeDefaults()
+        let client = DDCBrightnessClient(
+            transportProvider: { _ in transport },
+            displayCandidateProvider: Self.candidate,
+            defaults: defaults,
+            gammaDimming: { _, _ in }
+        )
+
+        #expect(client.setBrightness(0) == true)
+        #expect(client.setBrightness(0.5) == true)
+        let keys = defaults.stringArray(forKey: AppStorageKeys.ddcSoftwareDimmedDisplays) ?? []
+        #expect(keys.isEmpty)
+    }
+
+    @Test
+    func launchRestoresPersistedGammaThenClearsKeys() {
+        let defaults = makeDefaults()
+        let displayKey = "0x10ac:0x437d:1112950348"
+        defaults.set([displayKey], forKey: AppStorageKeys.ddcSoftwareDimmedDisplays)
+
+        var gammaCalls: [(displayID: CGDirectDisplayID, factor: Float)] = []
+        _ = DDCBrightnessClient(
+            transportProvider: { _ in nil },
+            displayCandidateProvider: Self.candidate,
+            defaults: defaults,
+            gammaDimming: { gammaCalls.append((displayID: $0, factor: $1)) },
+            activeExternalDisplays: { [displayKey: 42] }
+        )
+
+        let keys = defaults.stringArray(forKey: AppStorageKeys.ddcSoftwareDimmedDisplays) ?? []
+        #expect(keys.isEmpty)
+        #expect(gammaCalls.map(\.displayID) == [42])
+        #expect(gammaCalls.map(\.factor) == [1])
+    }
+
     // MARK: - Helpers
 
     private func makeDefaults() -> UserDefaults {

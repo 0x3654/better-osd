@@ -49,6 +49,9 @@ typealias DDCDisplayCandidateProvider = () -> (displayID: CGDirectDisplayID, dis
 /// display. Injectable so unit tests can fake the gamma tables.
 typealias GammaDimmingApplier = (CGDirectDisplayID, Float) -> Void
 
+/// Resolves currently attached external displays by stable display key.
+typealias DDCActiveExternalDisplaysProvider = () -> [String: CGDirectDisplayID]
+
 // MARK: - Client
 
 final class DDCBrightnessClient: DisplayServicesBrightnessControlling, TargetedBrightnessControlling {
@@ -69,6 +72,7 @@ final class DDCBrightnessClient: DisplayServicesBrightnessControlling, TargetedB
     private let displayCandidateProvider: DDCDisplayCandidateProvider
     private let defaults: UserDefaults
     private let gammaDimming: GammaDimmingApplier
+    private let activeExternalDisplays: DDCActiveExternalDisplaysProvider
 
     private var cachedTransport: DDCI2CTransport?
     private var cachedDisplayID: CGDirectDisplayID?
@@ -82,12 +86,14 @@ final class DDCBrightnessClient: DisplayServicesBrightnessControlling, TargetedB
         transportProvider: @escaping DDCTransportProvider = IOKitDDCTransport.resolve,
         displayCandidateProvider: @escaping DDCDisplayCandidateProvider = DDCBrightnessClient.externalDisplayCandidate,
         defaults: UserDefaults = .standard,
-        gammaDimming: @escaping GammaDimmingApplier = DDCBrightnessClient.applyGammaDimming
+        gammaDimming: @escaping GammaDimmingApplier = DDCBrightnessClient.applyGammaDimming,
+        activeExternalDisplays: @escaping DDCActiveExternalDisplaysProvider = DDCBrightnessClient.activeExternalDisplaysByKey
     ) {
         self.transportProvider = transportProvider
         self.displayCandidateProvider = displayCandidateProvider
         self.defaults = defaults
         self.gammaDimming = gammaDimming
+        self.activeExternalDisplays = activeExternalDisplays
 
         terminationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
@@ -98,6 +104,11 @@ final class DDCBrightnessClient: DisplayServicesBrightnessControlling, TargetedB
                 self?.restoreGammaForTermination()
             }
         }
+
+        // If a previous run dimmed gamma and exited without willTerminate
+        // (force-quit, crash), restore those displays now so launch never
+        // leaves the screen stuck dark.
+        restorePersistedGammaIfNeeded()
     }
 
     func currentBrightness() -> Float? {
@@ -177,9 +188,10 @@ final class DDCBrightnessClient: DisplayServicesBrightnessControlling, TargetedB
 
         if let gammaFactor {
             gammaDimming(displayID, gammaFactor)
-            softwareDimmedDisplays.insert(displayID)
+            markSoftwareDimmed(displayID, key: key)
         } else if softwareDimmedDisplays.remove(displayID) != nil {
             gammaDimming(displayID, 1)
+            unmarkSoftwareDimmed(key: key)
         }
 
         cache(clamped, for: key, displayID: displayID)
@@ -195,6 +207,55 @@ final class DDCBrightnessClient: DisplayServicesBrightnessControlling, TargetedB
             gammaDimming(displayID, 1)
         }
         softwareDimmedDisplays.removeAll()
+        defaults.removeObject(forKey: AppStorageKeys.ddcSoftwareDimmedDisplays)
+    }
+
+    /// Crash / force-quit safety: re-apply identity gamma for any display keys
+    /// we persisted as dimmed in a prior session, then clear the list.
+    private func restorePersistedGammaIfNeeded() {
+        let keys = defaults.stringArray(forKey: AppStorageKeys.ddcSoftwareDimmedDisplays) ?? []
+        guard !keys.isEmpty else { return }
+
+        let active = activeExternalDisplays()
+        for key in keys {
+            if let displayID = active[key] {
+                gammaDimming(displayID, 1)
+            }
+        }
+        defaults.removeObject(forKey: AppStorageKeys.ddcSoftwareDimmedDisplays)
+    }
+
+    private func markSoftwareDimmed(_ displayID: CGDirectDisplayID, key: String) {
+        softwareDimmedDisplays.insert(displayID)
+        var keys = Set(defaults.stringArray(forKey: AppStorageKeys.ddcSoftwareDimmedDisplays) ?? [])
+        keys.insert(key)
+        defaults.set(Array(keys), forKey: AppStorageKeys.ddcSoftwareDimmedDisplays)
+    }
+
+    private func unmarkSoftwareDimmed(key: String) {
+        var keys = Set(defaults.stringArray(forKey: AppStorageKeys.ddcSoftwareDimmedDisplays) ?? [])
+        keys.remove(key)
+        if keys.isEmpty {
+            defaults.removeObject(forKey: AppStorageKeys.ddcSoftwareDimmedDisplays)
+        } else {
+            defaults.set(Array(keys), forKey: AppStorageKeys.ddcSoftwareDimmedDisplays)
+        }
+    }
+
+    /// Active non-builtin displays keyed by `displayKey(for:)`.
+    nonisolated private static func activeExternalDisplaysByKey() -> [String: CGDirectDisplayID] {
+        var activeCount: UInt32 = 0
+        CGGetActiveDisplayList(0, nil, &activeCount)
+        var displays = Array(repeating: CGDirectDisplayID(), count: Int(activeCount))
+        guard CGGetActiveDisplayList(activeCount, &displays, &activeCount) == .success else {
+            return [:]
+        }
+
+        var result: [String: CGDirectDisplayID] = [:]
+        for id in displays where CGDisplayIsBuiltin(id) == 0 {
+            result[displayKey(for: id)] = id
+        }
+        return result
     }
 
     /// Scales the gamma tables linearly: out = factor × in. Factor 1 is the

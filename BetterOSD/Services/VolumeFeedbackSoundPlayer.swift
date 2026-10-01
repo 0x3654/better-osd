@@ -25,6 +25,8 @@ protocol VolumeFeedbackPlaying: AnyObject {
 final class VolumeFeedbackSoundPlayer: VolumeFeedbackPlaying {
     static let shared = VolumeFeedbackSoundPlayer()
 
+    nonisolated static let feedbackPreferenceKey = "com.apple.sound.beep.feedback"
+
     private static let systemSoundURL = URL(
         fileURLWithPath:
             "/System/Library/LoginPlugins/BezelServices.loginPlugin/Contents/Resources/volume.aiff"
@@ -46,14 +48,36 @@ final class VolumeFeedbackSoundPlayer: VolumeFeedbackPlaying {
 
     func playVolumeFeedback(invert: Bool) {
         // Mirrors System Settings → Sound → "Play feedback when volume is
-        // changed". Unset means on, which is the macOS default.
-        let settingEnabled = preferences.object(forKey: "com.apple.sound.beep.feedback") as? Bool ?? true
+        // changed". Unset means on, which is the macOS default. The invert
+        // path uses the same reader so Shift flips the real preference value.
+        let settingEnabled = Self.isFeedbackSettingEnabled(
+            preferences.object(forKey: Self.feedbackPreferenceKey)
+        )
         guard settingEnabled != invert else { return }
         loadSystemSound()
         if let systemSoundID {
             AudioServicesPlaySystemSound(systemSoundID)
         } else {
             fallbackSound?.play()
+        }
+    }
+
+    /// macOS stores `com.apple.sound.beep.feedback` as Int 0/1 in the global
+    /// domain. `as? Bool` fails for that storage type and incorrectly treats a
+    /// deliberate "off" (0) as unset → on. Accept nil (→ true), Bool, and
+    /// Int/NSNumber alike.
+    nonisolated static func isFeedbackSettingEnabled(_ value: Any?) -> Bool {
+        guard let value else { return true }
+
+        switch value {
+        case let bool as Bool:
+            return bool
+        case let int as Int:
+            return int != 0
+        case let number as NSNumber:
+            return number.intValue != 0
+        default:
+            return true
         }
     }
 
